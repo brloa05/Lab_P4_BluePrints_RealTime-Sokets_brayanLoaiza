@@ -31,20 +31,11 @@ export default function App() {
     const ctx = canvasRef.current?.getContext('2d')
     if (!ctx || !bp?.points) return
     ctx.clearRect(0, 0, 600, 400)
-    // dibuja un punto visible en cada coordenada
-    bp.points.forEach(p => {
-      ctx.beginPath()
-      ctx.arc(p.x, p.y, 4, 0, 2 * Math.PI)
-      ctx.fill()
+    ctx.beginPath()
+    bp.points.forEach((p, i) => {
+      if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y)
     })
-    // conecta los puntos con líneas si hay más de uno
-    if (bp.points.length > 1) {
-      ctx.beginPath()
-      bp.points.forEach((p, i) => {
-        if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y)
-      })
-      ctx.stroke()
-    }
+    ctx.stroke()
   }
 
   // carga estado inicial cuando cambia el plano activo
