@@ -7,16 +7,25 @@ const IO_BASE  = import.meta.env.VITE_IO_BASE  ?? 'http://localhost:3001'
 
 export default function App() {
   const [tech, setTech] = useState('stomp')
-  const [authorInput, setAuthorInput] = useState('john')
-  const [nameInput, setNameInput]     = useState('house')
+  const [author, setAuthor] = useState('juan')
+  const [name, setName]     = useState('plano-1')
 
-  // valores "activos" — solo cambian al presionar Conectar
-  const [active, setActive] = useState({ author: 'john', name: 'house', tech: 'stomp' })
+  // valores activos — se actualizan 600ms después de que el usuario deja de escribir
+  const [active, setActive] = useState({ author: 'juan', name: 'plano-1', tech: 'stomp' })
 
   const canvasRef = useRef(null)
   const stompRef  = useRef(null)
   const unsubRef  = useRef(null)
   const socketRef = useRef(null)
+
+  // debounce: espera 600ms después del último cambio antes de reconectar
+  useEffect(() => {
+    if (!author.trim() || !name.trim()) return
+    const timer = setTimeout(() => {
+      setActive({ author: author.trim(), name: name.trim(), tech })
+    }, 600)
+    return () => clearTimeout(timer)
+  }, [author, name, tech])
 
   function drawAll(bp) {
     const ctx = canvasRef.current?.getContext('2d')
@@ -68,11 +77,6 @@ export default function App() {
     }
   }, [active])
 
-  function conectar() {
-    if (!authorInput.trim() || !nameInput.trim()) return
-    setActive({ author: authorInput.trim(), name: nameInput.trim(), tech })
-  }
-
   function onClick(e) {
     const rect  = e.target.getBoundingClientRect()
     const point = { x: Math.round(e.clientX - rect.left), y: Math.round(e.clientY - rect.top) }
@@ -91,30 +95,14 @@ export default function App() {
   return (
     <div style={{ fontFamily: 'Inter, system-ui', padding: 16, maxWidth: 900 }}>
       <h2>BluePrints RT – Socket.IO vs STOMP</h2>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
         <label>Tecnología:</label>
         <select value={tech} onChange={e => setTech(e.target.value)}>
           <option value="stomp">STOMP (Spring)</option>
           <option value="socketio">Socket.IO (Node)</option>
         </select>
-        <input
-          value={authorInput}
-          onChange={e => setAuthorInput(e.target.value)}
-          placeholder="autor"
-          style={{ width: 100 }}
-        />
-        <input
-          value={nameInput}
-          onChange={e => setNameInput(e.target.value)}
-          placeholder="plano"
-          style={{ width: 100 }}
-        />
-        <button onClick={conectar} style={{ padding: '4px 12px', cursor: 'pointer' }}>
-          Conectar
-        </button>
-        <span style={{ opacity: 0.6, fontSize: 13 }}>
-          Activo: <b>{active.author}/{active.name}</b> [{active.tech}]
-        </span>
+        <input value={author} onChange={e => setAuthor(e.target.value)} placeholder="autor" />
+        <input value={name}   onChange={e => setName(e.target.value)}   placeholder="plano" />
       </div>
       <canvas
         ref={canvasRef}
@@ -124,7 +112,7 @@ export default function App() {
         onClick={onClick}
       />
       <p style={{ opacity: 0.7, marginTop: 8 }}>
-        Tip: abre 2 pestañas, conecta al mismo plano y dibuja alternando para ver la colaboración.
+        Tip: abre 2 pestañas con el mismo autor/plano y dibuja alternando para ver la colaboración.
       </p>
     </div>
   )
