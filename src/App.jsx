@@ -7,11 +7,11 @@ const IO_BASE  = import.meta.env.VITE_IO_BASE  ?? 'http://localhost:3001'
 
 export default function App() {
   const [tech, setTech] = useState('stomp')
-  const [author, setAuthor] = useState('juan')
-  const [name, setName]     = useState('plano-1')
+  const [author, setAuthor] = useState('john')
+  const [name, setName]     = useState('house')
 
   // valores activos — se actualizan 600ms después de que el usuario deja de escribir
-  const [active, setActive] = useState({ author: 'juan', name: 'plano-1', tech: 'stomp' })
+  const [active, setActive] = useState({ author: 'john', name: 'house', tech: 'stomp' })
 
   const canvasRef = useRef(null)
   const stompRef  = useRef(null)
@@ -31,11 +31,20 @@ export default function App() {
     const ctx = canvasRef.current?.getContext('2d')
     if (!ctx || !bp?.points) return
     ctx.clearRect(0, 0, 600, 400)
-    ctx.beginPath()
-    bp.points.forEach((p, i) => {
-      if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y)
+    // dibuja un punto visible en cada coordenada
+    bp.points.forEach(p => {
+      ctx.beginPath()
+      ctx.arc(p.x, p.y, 4, 0, 2 * Math.PI)
+      ctx.fill()
     })
-    ctx.stroke()
+    // conecta los puntos con líneas si hay más de uno
+    if (bp.points.length > 1) {
+      ctx.beginPath()
+      bp.points.forEach((p, i) => {
+        if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y)
+      })
+      ctx.stroke()
+    }
   }
 
   // carga estado inicial cuando cambia el plano activo
