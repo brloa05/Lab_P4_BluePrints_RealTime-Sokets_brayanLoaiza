@@ -1,0 +1,131 @@
+import { useEffect, useRef, useState } from 'react'
+import { createStompClient, subscribeBlueprint } from './lib/stompClient.js'
+import { createSocket } from './lib/socketIoClient.js'
+
+const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8080'
+const IO_BASE  = import.meta.env.VITE_IO_BASE  ?? 'http://localhost:3001'
+
+export default function App() {
+  const [tech, setTech] = useState('stomp')
+  const [authorInput, setAuthorInput] = useState('john')
+  const [nameInput, setNameInput]     = useState('house')
+
+  // valores "activos" — solo cambian al presionar Conectar
+  const [active, setActive] = useState({ author: 'john', name: 'house', tech: 'stomp' })
+
+  const canvasRef = useRef(null)
+  const stompRef  = useRef(null)
+  const unsubRef  = useRef(null)
+  const socketRef = useRef(null)
+
+  function drawAll(bp) {
+    const ctx = canvasRef.current?.getContext('2d')
+    if (!ctx || !bp?.points) return
+    ctx.clearRect(0, 0, 600, 400)
+    ctx.beginPath()
+    bp.points.forEach((p, i) => {
+      if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y)
+    })
+    ctx.stroke()
+  }
+
+  // carga estado inicial cuando cambia el plano activo
+  useEffect(() => {
+    const base = active.tech === 'stomp' ? API_BASE : IO_BASE
+    fetch(`${base}/api/blueprints/${active.author}/${active.name}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) drawAll(data) })
+      .catch(() => {})
+  }, [active])
+
+  // conecta/reconecta RT cuando cambia el plano activo
+  useEffect(() => {
+    unsubRef.current?.unsubscribe?.(); unsubRef.current = null
+    stompRef.current?.deactivate?.(); stompRef.current = null
+    socketRef.current?.disconnect?.(); socketRef.current = null
+
+    if (active.tech === 'stomp') {
+      const client = createStompClient(API_BASE)
+      stompRef.current = client
+      client.onConnect = () => {
+        unsubRef.current = subscribeBlueprint(client, active.author, active.name, upd => {
+          drawAll({ points: upd.points })
+        })
+      }
+      client.activate()
+    } else {
+      const s = createSocket(IO_BASE)
+      socketRef.current = s
+      const room = `blueprints.${active.author}.${active.name}`
+      s.emit('join-room', room)
+      s.on('blueprint-update', upd => drawAll({ points: upd.points }))
+    }
+
+    return () => {
+      unsubRef.current?.unsubscribe?.(); unsubRef.current = null
+      stompRef.current?.deactivate?.()
+      socketRef.current?.disconnect?.()
+    }
+  }, [active])
+
+  function conectar() {
+    if (!authorInput.trim() || !nameInput.trim()) return
+    setActive({ author: authorInput.trim(), name: nameInput.trim(), tech })
+  }
+
+  function onClick(e) {
+    const rect  = e.target.getBoundingClientRect()
+    const point = { x: Math.round(e.clientX - rect.left), y: Math.round(e.clientY - rect.top) }
+
+    if (active.tech === 'stomp' && stompRef.current?.connected) {
+      stompRef.current.publish({
+        destination: '/app/draw',
+        body: JSON.stringify({ author: active.author, name: active.name, point })
+      })
+    } else if (active.tech === 'socketio' && socketRef.current?.connected) {
+      const room = `blueprints.${active.author}.${active.name}`
+      socketRef.current.emit('draw-event', { room, author: active.author, name: active.name, point })
+    }
+  }
+
+  return (
+    <div style={{ fontFamily: 'Inter, system-ui', padding: 16, maxWidth: 900 }}>
+      <h2>BluePrints RT – Socket.IO vs STOMP</h2>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
+        <label>Tecnología:</label>
+        <select value={tech} onChange={e => setTech(e.target.value)}>
+          <option value="stomp">STOMP (Spring)</option>
+          <option value="socketio">Socket.IO (Node)</option>
+        </select>
+        <input
+          value={authorInput}
+          onChange={e => setAuthorInput(e.target.value)}
+          placeholder="autor"
+          style={{ width: 100 }}
+        />
+        <input
+          value={nameInput}
+          onChange={e => setNameInput(e.target.value)}
+          placeholder="plano"
+          style={{ width: 100 }}
+        />
+        <button onClick={conectar} style={{ padding: '4px 12px', cursor: 'pointer' }}>
+          Conectar
+        </button>
+        <span style={{ opacity: 0.6, fontSize: 13 }}>
+          Activo: <b>{active.author}/{active.name}</b> [{active.tech}]
+        </span>
+      </div>
+      <canvas
+        ref={canvasRef}
+        width={600}
+        height={400}
+        style={{ border: '1px solid #ddd', borderRadius: 12, display: 'block' }}
+        onClick={onClick}
+      />
+      <p style={{ opacity: 0.7, marginTop: 8 }}>
+        Tip: abre 2 pestañas, conecta al mismo plano y dibuja alternando para ver la colaboración.
+      </p>
+    </div>
+  )
+}
